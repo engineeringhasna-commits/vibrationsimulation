@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engineering Playground — Signal Analysis Lab</title>
+<style>
+:root{--ink:#18212b;--muted:#667085;--line:#dfe4ea;--paper:#fff;--soft:#f5f7fa;--blue:#2457d6;--teal:#0b8f87;--orange:#d97706;--purple:#7950c8}
+*{box-sizing:border-box}body{margin:0;background:#eef1f5;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1200px;margin:auto;padding:24px 18px 40px}.head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:20px}
+h1{font-size:clamp(26px,4vw,40px);letter-spacing:-1.2px;margin:0 0 7px}.sub{color:var(--muted);margin:0;line-height:1.5}.tag{border:1px solid var(--line);border-radius:999px;padding:8px 12px;background:white;font-size:12px;white-space:nowrap}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:0 4px 18px #18212b08}
+.controls{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:16px;align-items:end}.control label{display:flex;justify-content:space-between;font-size:13px;font-weight:650;margin-bottom:8px}.control small{color:var(--muted);font-weight:500}input[type=range]{width:100%;accent-color:var(--blue)}
+button{border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 13px;border-radius:10px;font-weight:650;cursor:pointer}button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}button:hover{filter:brightness(.97)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}.tab{font-size:13px}.tab.active{background:#18212b;color:white;border-color:#18212b}
+.stage{display:grid;grid-template-columns:1fr 1fr;gap:14px}.chartbox{border:1px solid var(--line);border-radius:13px;padding:12px;min-width:0}.chart-title{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px;font-weight:750;font-size:14px}.pill{font-size:11px;border-radius:999px;padding:4px 8px;background:#eef2ff;color:#3449a8;white-space:nowrap}.chartbox canvas{width:100%;height:245px;display:block}.note{font-size:13px;color:var(--muted);line-height:1.55;margin:10px 2px 0}.explain{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}.mini{background:var(--soft);border-radius:12px;padding:14px}.mini strong{display:block;font-size:13px;margin-bottom:6px}.mini p{font-size:13px;line-height:1.5;color:#475467;margin:0}
+.status{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--teal);margin-right:6px}
+.footer{font-size:12px;color:var(--muted);text-align:center;margin-top:16px}
+@media(max-width:760px){.head{display:block}.tag{display:inline-block;margin-top:12px}.controls,.stage,.explain{grid-template-columns:1fr}.chartbox canvas{height:220px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <div><h1>Engineering Playground</h1><p class="sub">Signal Analysis Lab · Satu sinyal getaran, beberapa cara membaca ceritanya.</p></div>
+    <div class="tag"><span class="status"></span>Interactive learning demo</div>
+  </header>
+  <section class="panel">
+    <div class="controls">
+      <div class="control"><label>Frekuensi dominan <small id="freqVal">30 Hz</small></label><input id="freq" type="range" min="10" max="100" value="30" step="5"></div>
+      <div class="control"><label>Impuls / fault severity <small id="faultVal">Sedang</small></label><input id="fault" type="range" min="0" max="100" value="45" step="5"></div>
+      <div class="control"><label>Noise <small id="noiseVal">15%</small></label><input id="noise" type="range" min="0" max="60" value="15" step="5"></div>
+    </div>
+    <div class="actions"><button class="primary" id="play">▶ Play transformation</button><button id="reset">Reset signal</button><button id="pause">Pause</button></div>
+    <p class="note">Demo memakai sinyal sintetis agar hubungan antar-metode mudah dilihat. Slider mengubah sinyal sumber; semua panel kemudian dihitung dari sinyal yang sama.</p>
+  </section>
+  <section class="panel">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-mode="overview">Overview</button>
+      <button class="tab" data-mode="fft">FFT spectrum</button>
+      <button class="tab" data-mode="envelope">Envelope spectrum</button>
+      <button class="tab" data-mode="stft">STFT</button>
+      <button class="tab" data-mode="wavelet">Wavelet / CWT</button>
+      <button class="tab" data-mode="stats">Statistical features</button>
+      <button class="tab" data-mode="orbit">Orbit / phase (concept)</button>
+    </div>
+    <div class="stage">
+      <div class="chartbox"><div class="chart-title"><span id="leftTitle">1. Time waveform</span><span class="pill">Time domain</span></div><canvas id="left"></canvas><p class="note" id="leftNote">Lihat bentuk getaran terhadap waktu.</p></div>
+      <div class="chartbox"><div class="chart-title"><span id="rightTitle">2. Pilih metode analisis</span><span class="pill" id="rightPill">Transformation</span></div><canvas id="right"></canvas><p class="note" id="rightNote">Klik tab metode untuk melihat bagaimana sinyal yang sama ditampilkan dengan cara berbeda.</p></div>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="chart-title">Cara membaca hasil</div>
+    <div class="explain" id="explain">
+      <div class="mini"><strong>Time waveform</strong><p>Menunjukkan perubahan amplitudo terhadap waktu; berguna untuk melihat impact, clipping, dan pola berulang.</p></div>
+      <div class="mini"><strong>Frequency domain</strong><p>FFT merangkum komponen frekuensi yang ada, tetapi urutan waktu kejadian tidak lagi terlihat.</p></div>
+      <div class="mini"><strong>Time-frequency</strong><p>STFT dan wavelet menunjukkan kapan energi frekuensi muncul; wavelet memakai resolusi skala yang berbeda.</p></div>
+    </div>
+    <p class="note" id="methodNote">Catatan: grafik STFT dan CWT di sini adalah visualisasi edukasi berbasis transformasi numerik sederhana, bukan perangkat diagnosis mesin bersertifikat.</p>
+  </section>
+  <div class="footer">Engineering Playground · Vibration learning demo · Synthetic signal, not machine data</div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const canvases={left:$('left'),right:$('right')};
+let mode='overview', raf=null, progress=0, playing=false, lastTime=0;
+function signalParams(){return {f:+$('freq').value,fault:+$('fault').value/100,noise:+$('noise').value/100};}
+function makeSignal(){
+ const p=signalParams(), N=512, fs=1024, x=[];
+ // Reproducible pseudo noise
+ for(let i=0;i<N;i++){
+   let t=i/fs;
+   let s=.62*Math.sin(2*Math.PI*p.f*t)+.20*Math.sin(2*Math.PI*(2*p.f)*t+.6);
+   // Repeated damped impacts with resonant ringing
+   const period=fs/Math.max(1,p.f*.72), phase=(i%period);
+   let impact=0;
+   if(phase<1.6) impact=(1-phase/1.6)*p.fault*2.5;
+   else if(phase<35) impact=p.fault*1.1*Math.exp(-(phase-1.6)/8)*Math.sin(2*Math.PI*115*(phase/fs));
+   let n=(Math.sin(i*12.9898+78.233)*43758.5453)%1;
+   n=(n-Math.trunc(n))*2;
+   x.push(s+impact+n*p.noise*.7);
+ }
+ return {x,N,fs,p};
+}
+function fftMag(arr){
+ const n=arr.length, re=arr.slice(), im=Array(n).fill(0);
+ // radix-2 Cooley-Tukey
+ for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){[re[i],re[j]]=[re[j],re[i]];[im[i],im[j]]=[im[j],im[i]];}}
+ for(let len=2;len<=n;len<<=1){let ang=-2*Math.PI/len, wr0=Math.cos(ang),wi0=Math.sin(ang);for(let i=0;i<n;i+=len){let wr=1,wi=0;for(let j=0;j<len/2;j++){let u=i+j,v=i+j+len/2,vr=re[v]*wr-im[v]*wi,vi=re[v]*wi+im[v]*wr;re[v]=re[u]-vr;im[v]=im[u]-vi;re[u]+=vr;im[u]+=vi;let nw=wr*wr0-wi*wi0;wi=wr*wi0+wi*wr0;wr=nw;}}}
+ return re.slice(0,n/2).map((v,i)=>({f:i*1024/n,a:Math.sqrt(v*v+im[i]*im[i])*2/n}));
+}
+function envelope(arr){
+ // simple analytic-envelope approximation: moving RMS, useful as a teaching proxy
+ const w=15,out=[];
+ for(let i=0;i<arr.length;i++){let s=0,c=0;for(let j=Math.max(0,i-w);j<=Math.min(arr.length-1,i+w);j++){s+=arr[j]*arr[j];c++;}out.push(Math.sqrt(s/c));}
+ const mean=out.reduce((a,b)=>a+b,0)/out.length;return out.map(v=>v-mean);
+}
+function stft(arr, win=64, hop=16){
+ let frames=[];for(let start=0;start+win<=arr.length;start+=hop){let frame=arr.slice(start,start+win);for(let i=0;i<win;i++)frame[i]*=.5-.5*Math.cos(2*Math.PI*i/(win-1));let mag=fftMag(frame);frames.push(mag.slice(0,win/2));}return frames;
+}
+function waveletEnergy(arr, scales=[2,4,8,16,32,64]){
+ // Difference-of-Gaussians-like wavelet proxy (Mexican-hat shape)
+ return scales.map(scale=>{let row=[];for(let t=0;t<arr.length;t+=4){let sum=0;for(let k=-3*scale;k<=3*scale;k+=Math.max(1,Math.floor(scale/3))){let idx=t+k;if(idx<0||idx>=arr.length)continue;let z=k/scale;let psi=(1-z*z)*Math.exp(-z*z/2);sum+=arr[idx]*psi;}row.push(Math.abs(sum)/Math.sqrt(scale));}return row;});
+}
+function stats(arr){let n=arr.length,mean=arr.reduce((a,b)=>a+b,0)/n, rms=Math.sqrt(arr.reduce((a,b)=>a+b*b,0)/n), variance=arr.reduce((a,b)=>a+(b-mean)**2,0)/n, sd=Math.sqrt(variance), kurt=arr.reduce((a,b)=>a+Math.pow((b-mean)/(sd||1),4),0)/n, peak=Math.max(...arr.map(Math.abs));return {mean,rms,kurt,crest:peak/(rms||1),peak};}
+function setupCanvas(c){let dpr=window.devicePixelRatio||1,rect=c.getBoundingClientRect();c.width=Math.max(300,Math.floor(rect.width*dpr));c.height=Math.floor(rect.height*dpr);let ctx=c.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);return {ctx,w:rect.width,h:rect.height};}
+function axes(ctx,w,h,xLabel,yLabel){ctx.clearRect(0,0,w,h);ctx.strokeStyle='#e6e9ef';ctx.lineWidth=1;for(let i=0;i<5;i++){let y=20+(h-55)*i/4;ctx.beginPath();ctx.moveTo(42,y);ctx.lineTo(w-12,y);ctx.stroke();}ctx.strokeStyle='#98a2b3';ctx.beginPath();ctx.moveTo(42,15);ctx.lineTo(42,h-35);ctx.lineTo(w-12,h-35);ctx.stroke();ctx.fillStyle='#667085';ctx.font='11px sans-serif';ctx.fillText(yLabel,5,12);ctx.fillText(xLabel,w-90,h-8);}
+function drawLine(c,data,opts={}){
+ let {ctx,w,h}=setupCanvas(c);axes(ctx,w,h,opts.xLabel||'Time',opts.yLabel||'Amplitude');
+ const left=43,right=w-13,top=20,bottom=h-35, ymin=opts.ymin??Math.min(...data), ymax=opts.ymax??Math.max(...data);let span=(ymax-ymin)||1;
+ ctx.strokeStyle=opts.color||'#2457d6';ctx.lineWidth=1.6;ctx.beginPath();
+ data.forEach((v,i)=>{let x=left+i/(data.length-1)*(right-left),y=bottom-(v-ymin)/span*(bottom-top);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.stroke();
+ if(opts.marker!=null){let x=left+opts.marker*(right-left);ctx.strokeStyle='#d97706';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();ctx.setLineDash([]);}
+}
+function drawSpectrum(c,mag,opts={}){
+ let {ctx,w,h}=setupCanvas(c);axes(ctx,w,h,'Frequency (Hz)','Magnitude');let left=43,right=w-13,top=20,bottom=h-35,max=Math.max(...mag.map(d=>d.a))||1;
+ ctx.strokeStyle=opts.color||'#0b8f87';ctx.lineWidth=1.7;ctx.beginPath();mag.forEach((d,i)=>{let x=left+i/(mag.length-1)*(right-left),y=bottom-d.a/max*(bottom-top);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.stroke();
+}
+function drawHeat(c,matrix,xLabel){
+ let {ctx,w,h}=setupCanvas(c);axes(ctx,w,h,xLabel,'Scale / Frequency');let left=43,right=w-13,top=20,bottom=h-35,rows=matrix.length,cols=matrix[0]?.length||1,max=Math.max(...matrix.flat(),1e-9);
+ let cw=(right-left)/cols,ch=(bottom-top)/rows;
+ for(let r=0;r<rows;r++)for(let col=0;col<cols;col++){let v=matrix[r][col]/max;let red=Math.floor(245*v+15),green=Math.floor(245*(1-v)),blue=Math.floor(255*(1-v));ctx.fillStyle=`rgb(${red},${green},${blue})`;ctx.fillRect(left+col*cw,bottom-(r+1)*ch,Math.ceil(cw+0.5),Math.ceil(ch+0.5));}
+}
+function drawStats(c,s){
+ let {ctx,w,h}=setupCanvas(c);ctx.clearRect(0,0,w,h);let items=[['RMS',s.rms],['Kurtosis',s.kurt],['Crest factor',s.crest],['Peak',s.peak]];let max=Math.max(...items.map(a=>a[1]),1);
+ items.forEach((it,i)=>{let y=30+i*52;ctx.fillStyle='#344054';ctx.font='12px sans-serif';ctx.fillText(it[0],10,y);ctx.fillStyle='#e6eaf0';ctx.fillRect(100,y-12,w-125,18);ctx.fillStyle=['#2457d6','#d97706','#7950c8','#0b8f87'][i];ctx.fillRect(100,y-12,(w-125)*it[1]/max,18);ctx.fillStyle='#344054';ctx.fillText(it[1].toFixed(2),w-45,y+2);});
+}
+function drawOrbit(c){
+ let {ctx,w,h}=setupCanvas(c);ctx.clearRect(0,0,w,h);let cx=w/2,cy=h/2,rx=Math.min(w*.32,110),ry=Math.min(h*.32,78);ctx.strokeStyle='#e6e9ef';ctx.beginPath();ctx.moveTo(cx-rx-20,cy);ctx.lineTo(cx+rx+20,cy);ctx.moveTo(cx,cy-ry-20);ctx.lineTo(cx,cy+ry+20);ctx.stroke();ctx.strokeStyle='#7950c8';ctx.lineWidth=2;ctx.beginPath();for(let i=0;i<=300;i++){let t=i/300*Math.PI*8,x=cx+rx*Math.sin(t),y=cy+ry*Math.sin(t+0.8);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();ctx.fillStyle='#667085';ctx.font='12px sans-serif';ctx.fillText('Y',cx+5,cy-ry-24);ctx.fillText('X',cx+rx+24,cy+4);ctx.fillText('Illustrative shaft orbit',10,h-12);
+}
+const descriptions={
+ overview:['1. Time waveform','2. Pilih metode analisis','Time domain','Transformation','Lihat bentuk getaran terhadap waktu.','Klik tab metode untuk melihat bagaimana sinyal yang sama ditampilkan dengan cara berbeda.'],
+ fft:['1. Time waveform','2. FFT spectrum','Time domain','Frequency domain','Pola impact tampak sebagai transien di waktu.','FFT menunjukkan komponen frekuensi; informasi kapan komponen terjadi tidak dipertahankan.'],
+ envelope:['1. Time waveform','2. Envelope spectrum','Time domain','Demodulation','Sinyal mentah bisa berisi resonansi frekuensi tinggi yang membawa impact.','Envelope membantu menonjolkan pengulangan impact pada fault bearing, bila resonansi dan parameter dipilih tepat.'],
+ stft:['1. Time waveform','2. STFT spectrogram','Time domain','Time-frequency','Waveform memperlihatkan amplitudo terhadap waktu.','STFT membagi sinyal menjadi jendela pendek sehingga perubahan kandungan frekuensi terhadap waktu terlihat.'],
+ wavelet:['1. Time waveform','2. CWT-like scalogram','Time domain','Time-scale','Waveform memperlihatkan transien sebagai lonjakan singkat.','Wavelet cocok untuk transien karena resolusinya berubah menurut skala; tampilan ini adalah aproksimasi edukasi.'],
+ stats:['1. Time waveform','2. Statistical indicators','Time domain','Statistical features','Perhatikan impuls yang menaikkan puncak sinyal.','RMS mengukur level energi, kurtosis sensitif terhadap impuls, crest factor membandingkan peak dengan RMS.'],
+ orbit:['1. X/Y vibration concept','2. Shaft orbit (concept)','Two channels','Orbit / phase','Pada mesin tertentu, dua proximity probe dipasang saling tegak lurus untuk mengukur gerak relatif poros.','Orbit menggabungkan sinyal X dan Y; gambar konseptual ini bukan dihitung dari waveform satu kanal.']
+};
+function render(){
+ const {x,N,fs,p}=makeSignal(), fft=fftMag(x), env=fftMag(envelope(x)), tf=stft(x), cw=waveletEnergy(x), s=stats(x);
+ let leftData=x.slice(0,256);
+ if(mode==='orbit'){drawOrbit(canvases.left);drawOrbit(canvases.right);}
+ else{
+  drawLine(canvases.left,leftData,{xLabel:'Time (s)',yLabel:'Amplitude',color:'#2457d6'});
+  if(mode==='overview'){drawSpectrum(canvases.right,fft);$('rightTitle').textContent='2. FFT spectrum (preview)';}
+  if(mode==='fft'){drawSpectrum(canvases.right,fft);}
+  if(mode==='envelope'){drawSpectrum(canvases.right,env,{color:'#d97706'});}
+  if(mode==='stft'){drawHeat(canvases.right,tf.map(frame=>frame.slice(0,24).map(d=>d.a)),'Time →');}
+  if(mode==='wavelet'){drawHeat(canvases.right,cw,'Time →');}
+  if(mode==='stats'){drawStats(canvases.right,s);}
+ }
+ let d=descriptions[mode];$('leftTitle').textContent=d[0];$('rightTitle').textContent=d[1];$('leftNote').textContent=d[4];$('rightNote').textContent=d[5];$('rightPill').textContent=d[3];
+ $('freqVal').textContent=p.f+' Hz';$('faultVal').textContent=p.fault<.25?'Ringan':p.fault<.6?'Sedang':'Berat';$('noiseVal').textContent=Math.round(p.noise*100)+'%';
+}
+function selectMode(m){mode=m;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));render();}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>selectMode(b.dataset.mode)));
+['freq','fault','noise'].forEach(id=>$(id).addEventListener('input',render));
+$('reset').addEventListener('click',()=>{$('freq').value=30;$('fault').value=45;$('noise').value=15;selectMode('overview');});
+$('play').addEventListener('click',()=>{playing=true;progress=0;if(raf)cancelAnimationFrame(raf);animate();});
+$('pause').addEventListener('click',()=>{playing=false;if(raf)cancelAnimationFrame(raf);});
+function animate(){if(!playing)return;let modes=['overview','fft','envelope','stft','wavelet','stats'];let idx=Math.floor(progress/90)%modes.length;selectMode(modes[idx]);progress++;raf=requestAnimationFrame(animate);}
+window.addEventListener('resize',render);render();
+</script>
+</body></html>
