@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulasi Interaktif Spring–Mass–Damper</title>
+<style>
+:root{--bg:#0b1016;--panel:#17222d;--panel2:#101a24;--text:#e7edf3;--muted:#9aabba;--teal:#35c4b5;--orange:#f5a623;--red:#ff626b;--spring:#9aabba;--line:#2a3947}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:20px}
+.wrap{max-width:1000px;margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}.eyebrow{color:var(--teal);font-size:.78rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.top h1{font-size:clamp(1.35rem,3vw,2rem);margin:5px 0 0}.status{border:1px solid var(--line);border-radius:999px;padding:8px 12px;color:var(--muted);font-size:.82rem;white-space:nowrap}
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.85fr);gap:16px}.panel{background:var(--panel);border:1px solid #22313e;border-radius:20px;padding:18px;min-width:0}.panel h2{font-size:1rem;margin:0 0 12px}.scene{width:100%;height:auto;display:block;background:#111c26;border-radius:14px}.controls{display:grid;gap:17px}.control-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px}.control-head label{color:#dce5ed}.val{font-weight:750;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}input[type=range]{width:100%;accent-color:var(--teal);cursor:pointer}.buttons{display:flex;flex-wrap:wrap;gap:9px;margin-top:4px}button{border:0;border-radius:12px;padding:11px 15px;font:inherit;font-weight:750;cursor:pointer;background:#2a3947;color:var(--text)}button.primary{background:var(--teal);color:#071a1a}button:hover{filter:brightness(1.08)}.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}.stat{background:var(--panel2);border-radius:12px;padding:12px}.stat span{display:block;color:var(--muted);font-size:.8rem;margin-bottom:5px}.stat strong{font-size:1.2rem;font-variant-numeric:tabular-nums}.stat small{color:var(--muted);font-size:.75rem}.chartpanel{margin-top:16px}.chart{width:100%;height:auto;display:block;background:#101a24;border-radius:14px}.foot{font-size:.82rem;color:var(--muted);line-height:1.55;margin:12px 2px 0}.equation{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#dce5ed;background:#101a24;border-radius:10px;padding:10px 12px;font-size:.9rem;overflow-wrap:anywhere}.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.8rem;margin-top:9px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}.warning{color:#ffc66d}.subhead{color:var(--muted);font-size:.84rem;line-height:1.5;margin:-3px 0 14px}
+@media(max-width:760px){body{padding:12px}.grid{grid-template-columns:1fr}.panel{padding:14px}.top{align-items:flex-start}.status{font-size:.72rem}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><div><div class="eyebrow">Engineering playground</div><h1>Spring–Mass–Damper</h1></div><div class="status" id="status">● Siap dimainkan</div></header>
+  <div class="grid">
+    <section class="panel">
+      <h2>Gerakan sistem</h2>
+      <p class="subhead">Tarik massa dari titik equilibrium, lalu lepaskan untuk melihat osilasi dan efek redaman.</p>
+      <canvas id="scene" class="scene" width="760" height="340" aria-label="Animasi sistem pegas massa redaman"></canvas>
+      <div class="buttons">
+        <button class="primary" id="release">▶ Tarik &amp; lepas</button>
+        <button id="pause">Ⅱ Jeda</button>
+        <button id="reset">↺ Reset</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>Periode alami</span><strong id="period">1.40 s</strong><small>Tanpa redaman</small></div>
+        <div class="stat"><span>Frekuensi alami</span><strong id="freq">0.71 Hz</strong><small>Tanpa redaman</small></div>
+        <div class="stat"><span>Rasio redaman ζ</span><strong id="zeta">0.11</strong><small id="dampingLabel">Underdamped</small></div>
+        <div class="stat"><span>Frekuensi teredam</span><strong id="fd">0.70 Hz</strong><small id="fdLabel">Jika masih berosilasi</small></div>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Parameter sistem</h2>
+      <p class="subhead">Geser nilai untuk mengubah respons sistem secara langsung.</p>
+      <div class="controls">
+        <div><div class="control-head"><label for="amp">Simpangan awal</label><span class="val" id="ampVal">5.6 cm</span></div><input id="amp" type="range" min="1" max="12" step=".1" value="5.6"></div>
+        <div><div class="control-head"><label for="k">Kekakuan pegas (k)</label><span class="val" id="kVal">20 N/m</span></div><input id="k" type="range" min="5" max="100" step="1" value="20"></div>
+        <div><div class="control-head"><label for="m">Massa (m)</label><span class="val" id="mVal">1.0 kg</span></div><input id="m" type="range" min=".2" max="5" step=".1" value="1"></div>
+        <div><div class="control-head"><label for="c">Koefisien redaman (c)</label><span class="val" id="cVal">1.0 N·s/m</span></div><input id="c" type="range" min="0" max="20" step=".1" value="1"></div>
+      </div>
+      <div style="margin-top:20px"><h2>Model matematis</h2><div class="equation">mẍ + cẋ + kx = 0</div><p class="foot">m = massa · c = redaman · k = kekakuan pegas · x = simpangan dari equilibrium.</p></div>
+    </section>
+  </div>
+  <section class="panel chartpanel">
+    <h2>Simpangan terhadap waktu</h2>
+    <canvas id="chart" class="chart" width="920" height="270" aria-label="Grafik simpangan terhadap waktu"></canvas>
+    <div class="legend"><span><i class="dot" style="background:var(--teal)"></i>Simpangan x(t)</span><span><i class="dot" style="background:var(--red)"></i>Equilibrium (x = 0)</span><span><i class="dot" style="background:var(--orange)"></i>Posisi saat ini</span></div>
+    <p class="foot" id="chartNote">Model linear bebas: respons dihitung dari kondisi awal simpangan maksimum dan kecepatan awal nol. Grafik bergulir mengikuti waktu simulasi.</p>
+  </section>
+  <p class="foot">Catatan: ini simulasi edukasi ideal dengan satu derajat kebebasan. Periode dan frekuensi alami dihitung dari k dan m; redaman memengaruhi amplitudo serta frekuensi osilasi aktual.</p>
+</div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id), scene=$('scene'), ctx=scene.getContext('2d'), chart=$('chart'), g=chart.getContext('2d');
+const controls=['amp','k','m','c']; let t=0, paused=false, last=0, x=0, v=0, history=[], running=false;
+const colors={teal:'#35c4b5',orange:'#f5a623',red:'#ff626b',spring:'#9aabba',text:'#e7edf3',muted:'#9aabba',grid:'#2a3947'};
+function p(){return {A:+$('amp').value/100,k:+$('k').value,m:+$('m').value,c:+$('c').value}}
+function derived(){const q=p(),wn=Math.sqrt(q.k/q.m),fn=wn/(2*Math.PI),z=q.c/(2*Math.sqrt(q.k*q.m)),wd=wn*Math.sqrt(Math.max(0,1-z*z));return {...q,wn,fn,z,wd,fd:wd/(2*Math.PI),period:1/fn}}
+function updateLabels(){const d=derived();$('ampVal').textContent=(d.A*100).toFixed(1)+' cm';$('kVal').textContent=d.k.toFixed(0)+' N/m';$('mVal').textContent=d.m.toFixed(1)+' kg';$('cVal').textContent=d.c.toFixed(1)+' N·s/m';$('period').textContent=d.period.toFixed(2)+' s';$('freq').textContent=d.fn.toFixed(2)+' Hz';$('zeta').textContent=d.z.toFixed(2);$('dampingLabel').textContent=d.z<.999?'Underdamped':d.z<=1.001?'Critical':'Overdamped';$('fd').textContent=d.z<1?d.fd.toFixed(2)+' Hz':'—';$('fdLabel').textContent=d.z<1?'Frekuensi osilasi teredam':'Tidak berosilasi';$('chartNote').textContent=`ωₙ = ${d.wn.toFixed(2)} rad/s · ζ = ${d.z.toFixed(2)} · Simulasi waktu: ${t.toFixed(2)} s`;}
+function roundedRect(c,x,y,w,h,r,fill){c.beginPath();c.roundRect(x,y,w,h,r);c.fillStyle=fill;c.fill()}
+function spring(c,x1,x2,y,coils=9,amp=27){c.beginPath();c.moveTo(x1,y);const L=x2-x1,step=L/(coils*2);for(let i=0;i<coils*2;i++)c.lineTo(x1+(i+1)*step,y+(i%2===0?amp:-amp));c.lineTo(x2,y);c.strokeStyle=colors.spring;c.lineWidth=6;c.lineCap='round';c.lineJoin='round';c.stroke()}
+function drawScene(){const W=scene.width,H=scene.height,d=derived();ctx.clearRect(0,0,W,H);ctx.fillStyle='#111c26';ctx.fillRect(0,0,W,H);
+const wallX=76, eq=425, massW=128,massH=92, scale=180, massX=eq+Math.max(-105,Math.min(105,x*scale)), cy=160;
+roundedRect(ctx,wallX-14,70,28,180,14,'#c5d2dd');
+for(let yy=82;yy<246;yy+=16){ctx.strokeStyle='#9aabba';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(wallX-14,yy);ctx.lineTo(wallX+14,yy-8);ctx.stroke()}
+ctx.strokeStyle=colors.red;ctx.lineWidth=2.5;ctx.setLineDash([7,6]);ctx.beginPath();ctx.moveTo(eq,48);ctx.lineTo(eq,263);ctx.stroke();ctx.setLineDash([]);
+ctx.fillStyle=colors.red;ctx.font='bold 17px system-ui';ctx.textAlign='center';ctx.fillText('EQUILIBRIUM',eq,289);
+const springEnd=massX-massW/2-10;spring(ctx,wallX+20,springEnd,cy,9,25);
+ctx.strokeStyle=colors.spring;ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(springEnd,cy);ctx.lineTo(massX-massW/2,cy);ctx.stroke();
+roundedRect(ctx,massX-massW/2,cy-massH/2,massW,massH,18,colors.orange);
+ctx.fillStyle='#1b2025';ctx.font='bold 20px system-ui';ctx.textAlign='center';ctx.fillText('MASSA',massX,cy+7);
+ctx.fillStyle=colors.muted;ctx.font='15px system-ui';ctx.textAlign='left';ctx.fillText(`x = ${(x*100).toFixed(2)} cm`,35,315);
+ctx.textAlign='right';ctx.fillText(`t = ${t.toFixed(2)} s`,W-28,315);
+ctx.strokeStyle=colors.teal;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(eq-75,35);ctx.lineTo(eq+75,35);ctx.stroke();
+ctx.fillStyle=colors.teal;ctx.beginPath();ctx.moveTo(eq-75,35);ctx.lineTo(eq-61,25);ctx.lineTo(eq-61,45);ctx.fill();ctx.beginPath();ctx.moveTo(eq+75,35);ctx.lineTo(eq+61,25);ctx.lineTo(eq+61,45);ctx.fill();
+}
+function drawChart(){const W=chart.width,H=chart.height;g.clearRect(0,0,W,H);g.fillStyle='#101a24';g.fillRect(0,0,W,H);const left=56,right=W-20,top=20,bottom=H-34,gw=right-left,gh=bottom-top,d=derived(),range=.13;
+g.strokeStyle=colors.grid;g.lineWidth=1;for(let i=0;i<=4;i++){let yy=top+gh*i/4;g.beginPath();g.moveTo(left,yy);g.lineTo(right,yy);g.stroke()}
+g.fillStyle=colors.muted;g.font='13px system-ui';g.textAlign='right';g.fillText('12 cm',left-8,top+5);g.fillText('0',left-8,top+gh/2+4);g.fillText('-12 cm',left-8,bottom);
+g.setLineDash([8,7]);g.strokeStyle=colors.red;g.lineWidth=2;g.beginPath();g.moveTo(left,top+gh/2);g.lineTo(right,top+gh/2);g.stroke();g.setLineDash([]);
+const span=Math.max(5,d.period*3), start=Math.max(0,t-span);
+g.strokeStyle=colors.teal;g.lineWidth=3;g.beginPath();let first=true;for(let i=0;i<history.length;i++){const a=history[i];if(a.t<start)continue;const xx=left+(a.t-start)/span*gw, yy=top+gh/2-(a.x/.13)*(gh*.45);if(first){g.moveTo(xx,yy);first=false}else g.lineTo(xx,yy)}g.stroke();
+if(history.length){const a=history[history.length-1],xx=left+(a.t-start)/span*gw,yy=top+gh/2-(a.x/.13)*(gh*.45);g.fillStyle=colors.orange;g.beginPath();g.arc(Math.max(left,Math.min(right,xx)),Math.max(top,Math.min(bottom,yy)),6,0,Math.PI*2);g.fill()}
+g.fillStyle=colors.muted;g.textAlign='center';g.fillText('Waktu (s)',left+gw/2,H-8);g.textAlign='left';g.fillText(start.toFixed(1),left,bottom+20);g.textAlign='right';g.fillText(t.toFixed(1),right,bottom+20);
+}
+function release(){const d=derived();x=d.A;v=0;t=0;history=[];running=true;paused=false;$('pause').textContent='Ⅱ Jeda';$('status').textContent='● Berjalan';last=performance.now()}
+function reset(){t=0;x=0;v=0;history=[];running=false;paused=false;$('pause').textContent='Ⅱ Jeda';$('status').textContent='● Siap dimainkan';drawScene();drawChart();updateLabels()}
+function frame(now){if(!last)last=now;let dt=Math.min((now-last)/1000,.04);last=now;if(running&&!paused){const d=derived(); // Semi-implicit Euler, subdivided for stability
+let n=Math.max(1,Math.ceil(dt/.002)),h=dt/n;for(let i=0;i<n;i++){const a=-(d.c*v+d.k*x)/d.m;v+=a*h;x+=v*h;t+=h}if(Math.abs(x)<.0001&&Math.abs(v)<.001&&t>2){x=0;v=0;running=false;$('status').textContent='● Gerakan mereda'}history.push({t,x});if(history.length>7000)history.shift()}
+drawScene();drawChart();updateLabels();requestAnimationFrame(frame)}
+controls.forEach(id=>$(id).addEventListener('input',()=>{updateLabels();if(!running){x=+$('amp').value/100;v=0;history=[{t:0,x}];drawScene();drawChart()}}));
+$('release').addEventListener('click',release);$('pause').addEventListener('click',()=>{paused=!paused;$('pause').textContent=paused?'▶ Lanjut':'Ⅱ Jeda';$('status').textContent=paused?'Ⅱ Dijeda':running?'● Berjalan':'● Siap dimainkan'});$('reset').addEventListener('click',reset);
+x=+$('amp').value/100;history=[{t:0,x}];updateLabels();drawScene();drawChart();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
